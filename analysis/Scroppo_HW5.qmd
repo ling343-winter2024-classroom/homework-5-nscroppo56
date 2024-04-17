@@ -1,25 +1,263 @@
 ---
 title: "Scroppo_HW5"
-format: html
+format: 
+  html:
+    embed-resources: true
 ---
 
-## Quarto
-
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
-
-## Running Code
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
-
 ```{r}
-1 + 1
+#| warning: false
+library(tidyverse)
+library(kableExtra)
+library(gt)
 ```
 
-You can add options to executable code like this 
+
+## Prediction in the Maze Overview
+
+## Introduction & Background
+
+The resurgence of interest in the concept of prediction in language comprehension has marked the past two decades, asserting that comprehenders actively predict upcoming linguistic content at multiple levels, including semantics, morphosyntax, and phonology/orthography. This study focuses on using the maze task, an alternative incremental reading method, to explore early cues to prediction error. The study explores the role of predictive processing in language comprehension through the lens of the maze task—an innovative approach designed to measure incremental processing responses to morphosyntactic and phonotactic cues. This investigation primarily focuses on the predictive utility of articles and nouns that precede high cloze probability nouns. 
+
+## Hypothesis and Predictions
+
+The experiment aims to ascertain whether unexpected articles and nouns, placed before high cloze probability nouns, elicit slower focal response times in the maze task. It is hypothesized that these unexpected linguistic forms will provoke slower response times, indicating an inverse relationship with the cloze probabilities of the nouns. Specifically, the slower responders are expected to show more significant effects of expectation mismatch.
+
+## Description of Data
+
+The dataset consists of responses from 39 native UK English speakers who participated in the maze task. They interacted with 160 sentences, each manipulated to feature expected and unexpected article-noun combinations derived from high cloze probability contexts. Participant ages ranged from 18 to 71, with a balanced gender representation. Data were sourced from an online study conducted via Prolific and analyzed using advanced statistical models.
+
+Examples from the stimuli include:
+
+Expected: "The highlight of Jack’s trip to India was when he got to ride an elephant in the parade."
+Unexpected: "The highlight of Jack’s trip to India was when he got to ride a bicycle in the parade."
+
+## Design & Methodology
+
+Question
+
+Does the use of unexpected articles and nouns in high cloze probability sentences affect reading times and error rates in a maze task?
+
+Methods/Tests
+
+Participants navigated sentences using the maze task methodology, selecting between a correct and a distractor word. Response times and error rates were recorded, focusing on the critical regions—target articles and nouns. Statistical analyses included regression models assessing the impact of expectation mismatches (expected vs. unexpected conditions) and noun cloze probabilities on response times.
+
+
+## Codebook / Data Dictionary
+
+These are variables in the raw data that was imported for this assignment:
 
 ```{r}
-#| echo: false
-2 * 2
+#| code-fold: true
+#| code-summary: "Show the code"
+#| warning: false
+
+df_dictionary <- tibble::tribble( 
+  ~variable, ~description, 
+  "Index","Results Index",
+  "Time", "Time when response was recorded",
+  "Counter","A counter incrementing with each action within the session",
+  "Hash", "	A unique code associated with each participant's session for data validation and integrity checks",
+  "Owner", "Indicates whether the data was recorded by someone logged in as the experiment owner (Yes/No)", 
+  "Controller", "The name of the controller module handling the session or experiment phase (e.g., 'Form', 'Maze')", 
+  "Item", "Numerical identifier of the specific item within the experiment", 
+  "Element", "The position of the element within the item, often corresponding to a specific word in the maze task", 
+  "Type","The type of screen or task the participant is viewing, such as 'intro', 'practice', or 'maze'",
+  "Group", "Classification of the participant into different experimental groups, if applicable", 
+  "FieldName", "	Name of the data field, describing what kind of information it contains (e.g., 'age', 'gender')", 
+  "Value", "The actual value or response provided for the field",
+  "WordNum", "The position number of the word in the maze sentence",
+  "Word", "The word that is presented as the correct choice in the maze",
+  "Alt", "	The word that is presented as the incorrect choice or distractor in the maze",
+  "WordOn", "Indicates the position of the correct word; '0' for left, '1' for right",
+  "CorrWord", "	Indicates whether the response given was the correct one ('yes' or 'no')",
+  "RT","	The time in milliseconds it took for the participant to respond to the maze item",
+  "Sent", "The full sentence that was used in the maze task",
+  "TotalTime", "	Cumulative time in milliseconds taken by the participant to reach the correct answer",
+  "Question", "	Any comprehension question that followed the maze task, if applicable",
+  "Resp", "The participant's answer to the comprehension question",
+  "Acc", "correct (NULL if N/A)	Indicates if the given answer was correct, with possible values '1' for correct and '0' for incorrect",
+  "RespRT", "The time in milliseconds it took the participant to answer the comprehension question")
+
+df_dictionary |> 
+  gt() |> 
+  opt_row_striping() |> 
+  opt_stylize(style = 5)
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+
+## Importing Data
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='hide'}
+#directory <- "C:\\Users\\cpgl0052\\Dropbox\\Research\\delong maze\\"
+here::i_am("analysis/Scroppo_HW5.qmd")
+library(here)
+d <- read.csv(here("data/delong maze 40Ss.csv"), 
+              header = 0, sep = ",", comment.char = "#", strip.white = T,
+              col.names = c("Index","Time","Counter","Hash","Owner","Controller","Item","Element","Type","Group","FieldName","Value","WordNum","Word","Alt","WordOn","CorrWord","RT","Sent","TotalTime","Question","Resp","Acc","RespRT"))
+
+demo <- d[d$Controller == "Form",1:12]
+names(demo) <- c("Subject","MD5","TrialType","Number","Element","Experiment","Item","Field","Response","X","field","resp")
+demo <- as.data.frame(lapply(demo, function (x) if (is.factor(x) | is.character(x)) factor(x) else x)) 
+
+resp <- d[d$Controller == "Question" & substr(d$Type,1,4) != "prac", c(1:10,21:24)]
+resp <- separate(data = resp, col = Type, into = c("exp", "item", "expect", "position", "pos", "cloze", "art.cloze", "n.cloze"), sep = "\\.", convert = TRUE, fill = "right")
+resp <- as.data.frame(lapply(resp, function (x) if (is.factor(x) | is.character(x)) factor(x) else x))
+resp$Acc <- as.numeric(as.character(resp$Acc))
+resp$RespRT <- as.numeric(as.character(resp$RespRT))
+
+rt <- d[d$Controller == "Maze" & substr(d$Type,1,4) != "prac", c(1:10,13:20)]
+rt <- separate(data = rt, col = Type, into = c("exp", "item", "expect", "position", "pos", "cloze", "art.cloze", "n.cloze"), sep = "\\.", convert = TRUE, fill = "right")
+rt <- as.data.frame(lapply(rt, function (x) if (is.factor(x) | is.character(x)) factor(x) else x))
+rt$WordNum <- as.numeric(as.character(rt$WordNum))
+rt$RT <- as.numeric(as.character(rt$RT))
+rt$TotalTime <- as.numeric(as.character(rt$TotalTime))
+rt$Acc <- as.numeric(as.character(recode(rt$CorrWord, yes = "1", no = "0")))
+rt$n.cloze.scale <- scale(rt$n.cloze)
+rt$art.cloze.scale <- scale(rt$art.cloze)
+
+resp <- resp[resp$item != 29,]
+rt <- rt[rt$item != 29,]
+
+
+# Item cloze distributions
+
+item.cloze <- rt %>% group_by(expect) %>% distinct(item, .keep_all = T) %>% arrange(item)
+
+item.cloze %>% summarize(n=n(), min.art.cloze = min(art.cloze), max.art.cloze = max(art.cloze), mean.art.cloze = mean(art.cloze), med.art.cloze = median(art.cloze),
+                         min.n.cloze = min(n.cloze), max.n.cloze = max(n.cloze), mean.n.cloze = mean(n.cloze), med.n.cloze = median(n.cloze))
+
+item.cloze %>% group_by(expect) %>% summarize(n=n(), cor = cor(art.cloze, n.cloze))
+
+
+
+# Demo checks
+  
+  demo %>% filter(field == "age") %>% summarize(m.age = mean(as.numeric(as.character(resp))), 
+                                                min.age = min(as.numeric(as.character(resp))), 
+                                                max.age = max(as.numeric(as.character(resp))),
+                                                sd.age = sd(as.numeric(as.character(resp))))
+  
+  #ggplot(demo[demo$field == "age",], aes(x = as.numeric(as.character(resp)))) + geom_histogram()
+  
+  table(factor(demo[demo$field == "gender",]$resp))
+
+###
+
+### Comprehension question response analysis
+
+resp %>% summarize(n=n(), acc=mean(Acc), acc.sd=sd(Acc), rt=mean(RespRT), rt.sd=sd(RespRT)) %>% as.data.frame()
+
+resp %>% group_by(Hash) %>% summarize(n=n(), acc=mean(Acc), acc.sd=sd(Acc), rt=mean(RespRT), rt.sd=sd(RespRT)) %>% mutate(keep = acc > mean(acc)-2*sd(acc)) %>% arrange(acc) %>% as.data.frame()
+#remove 1 subject at 52% accuracy - all others >70%
+
+resp.s <- resp[resp$Hash != '9dAvrH0+R6a0U5adPzZSyA',]
+resp.s %>% summarize(n=n(), acc=mean(Acc), rt=mean(RespRT)) %>% as.data.frame()
+
+###
+
+### Maze reading analysis
+
+#Note: Rgn0 is article, Rgn1 is noun
+
+rt.s <- rt[rt$Hash != '9dAvrH0+R6a0U5adPzZSyA',]
+
+rt.s$rgn.fix <- rt.s$WordNum - rt.s$pos + 1
+rt.s$word.num.z <- scale(rt.s$WordNum)
+rt.s$word.len <- nchar(as.character(rt.s$Word))
+rt.s$Altword.len <- nchar(as.character(rt.s$Alt))
+contrasts(rt.s$expect) <- c(-.5,.5)
+
+rt.s$item.expect <- paste(rt.s$item, rt.s$expect, sep=".")
+delong.items <- rt.s %>% filter(rgn.fix == 0) %>% distinct(item.expect, .keep_all = TRUE)
+
+
+
+#Response accuracy
+rt.s %>% filter(rgn.fix > -4 & rgn.fix < 5) %>% summarize(n=n(), acc=mean(Acc), sd=sd(Acc), error=1-acc)
+rt.s %>% filter(rgn.fix == 0) %>% summarize(n=n(), acc=mean(Acc), sd=sd(Acc), error=1-acc)
+rt.s %>% filter(rgn.fix == 1) %>% summarize(n=n(), acc=mean(Acc), sd=sd(Acc), error=1-acc)
+rt.s %>% filter(rgn.fix > -4 & rgn.fix < 4) %>% group_by(Hash) %>% summarize(n=n(), acc=mean(Acc), sd=sd(Acc), error=1-acc) %>% mutate(keep = acc > mean(acc)-2*sd(acc)) %>% arrange(acc) %>% as.data.frame()
+#remove 2 (73.5% and 81.9%) - all others >90%
+
+rt.s.filt <- rt.s[rt.s$Hash != "gyxidIf0fqXBM7nxg2K7SQ" & rt.s$Hash != "f8dC3CkleTBP9lUufzUOyQ",]
+
+rt.s.filt %>% filter(rgn.fix > -4 & rgn.fix < 5) %>% summarize(n=n(), acc=mean(Acc), sd=sd(Acc), error=1-acc)
+rt.s.filt %>% filter(rgn.fix == 0) %>% summarize(n=n(), acc=mean(Acc), sd=sd(Acc), error=1-acc)
+rt.s.filt %>% filter(rgn.fix == 1) %>% summarize(n=n(), acc=mean(Acc), sd=sd(Acc), error=1-acc)
+
+
+
+#Analyze Response Times
+rt.s.filt %>% filter(rgn.fix > -4 & rgn.fix < 5) %>% filter(Acc == 1) %>% summarize(n=n(), rt=mean(RT), rt.sd=sd(RT), med=median(RT), rt.min=min(RT), rt.max=max(RT))
+rt.s.filt %>% filter(rgn.fix > -4 & rgn.fix < 5) %>% filter(Acc == 1) %>% group_by(Hash) %>% summarize(n=n(), rt=mean(RT), rt.sd=sd(RT), med=median(RT), rt.min=min(RT), rt.max=max(RT)) %>% mutate(keep = rt > mean(rt)-2*sd(rt) | rt < mean(rt)+2*sd(rt)) %>% as.data.frame()
+#all Ss kept
+
+#Filter out reading errors
+rt.s.rgn <- rt.s.filt %>% filter(rgn.fix > -4 & rgn.fix < 5) %>% filter(Acc == 1) %>% as.data.frame()
+
+
+```
+
+Code to find Data Analysis 
+```{r}
+n_participants <- length(unique(resp$Hash))
+remaining_rows <- nrow(rt.s.rgn)
+```
+
+## Data Analysis
+
+There are `r  n_participants` participants that we have data for in this study.
+
+After filtering the data, we can see that `r remaining_rows` rows are left in the data set. Practice Trials were removed, all responses associated with item 29 were removed, only correct responses were selected and certain regions were selected.
+
+## Statistical Breakdown of Participant Ages
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| warning: false
+demo %>% filter(field == "age") %>% summarize(m.age = mean(as.numeric(as.character(resp))), 
+                                                min.age = min(as.numeric(as.character(resp))), 
+                                                max.age = max(as.numeric(as.character(resp))),
+                                                sd.age = sd(as.numeric(as.character(resp)))) |> 
+                                                kbl() |> kable_paper(full_width = FALSE, font_size = 14) %>% 
+                                                column_spec(1, bold = TRUE, border_right = TRUE) %>%
+                                                kable_styling()
+  
+  
+```
+
+
+
+
+
+Here I am reproducing Figure 1 from the paper, which plots reading time against each position of the word in a sentence, along with values for the unexpected word and the expected word.
+```{r warning=FALSE, message=FALSE}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| warning: false
+#Graph raw (error free) RTs
+rgn.rt.raw <- rt.s.filt %>% filter(rgn.fix > -4 & rgn.fix < 5) %>% filter(Acc == 1) %>% group_by(rgn.fix, expect) %>% summarize(n=n(), subj=length(unique(Hash)), rt=mean(RT), sd=sd(RT), stderr=sd/sqrt(subj)) %>% as.data.frame()
+rgn.rt.raw$rgn <- as.factor(recode(rgn.rt.raw$rgn.fix, "-3"="CW-3", "-2"="CW-2", "-1"="CW-1", "0"="art", "1"="n","2"="CW+1", "3"="CW+2", "4"="CW+3"))
+rgn.rt.raw$rgn <- ordered(rgn.rt.raw$rgn, levels = c("CW-3", "CW-2", "CW-1", "art", "n", "CW+1", "CW+2", "CW+3"))
+ggplot(rgn.rt.raw, aes(x=rgn, y=rt, group=expect, shape=expect)) +
+  geom_line(stat = "identity", position=position_dodge(width=.3)) +
+  geom_point(stat = "identity", position=position_dodge(width=.3), size=3) +
+  geom_errorbar(aes(ymin = rt-stderr, ymax = rt+stderr), width=.15, position=position_dodge(width=.3)) +
+  scale_shape_manual(name="", labels=c("Expected", "Unexpected"), values = c(21,19)) + 
+  xlab("Word") + ylab("Reading Time (msec)") + 
+  theme_bw()
+```
+
+
+
+```{r}
+summary_table <- rgn.rt.raw %>%
+  select(rgn, expect, rt) %>%
+  spread(key = expect, value = rt) 
+
+# Generate the table with kableExtra
+kable(summary_table, format = "html", caption = "Reading Times by Word Position") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = F, font_size = 14) 
+```
+

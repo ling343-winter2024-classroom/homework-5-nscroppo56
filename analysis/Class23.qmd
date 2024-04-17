@@ -1,0 +1,75 @@
+---
+title: "Class23"
+author: "Noah Scroppo"
+format: html
+---
+```{r}
+#| warning: false
+library(tidyverse)
+library(kableExtra)
+library(gt)
+```
+
+```{r}
+here::i_am("analysis/Class23.qmd")
+library(here)
+df_all <- read.csv(here("data/delong maze 40Ss.csv"), 
+              header = 1, sep = ",", comment.char = "#", strip.white = T,
+              col.names = c("Index","Time","Counter","Hash","Owner","Controller","Item","Element","Type","Group","FieldName","Value","WordNum","Word","Alt","WordOn","CorrWord","RT","Sent","TotalTime","Question","Resp","Acc","RespRT"))
+
+
+```
+```{r}
+df_rt <- df_all |> 
+  filter(Controller == "Maze" & !str_detect(Type, "prac")) |> 
+  select(1:10, 13:20) |> 
+  separate(col = Type, 
+           into = c("exp", "item", "expect", "position", "pos", 
+                    "cloze", "art.cloze", "n.cloze"), 
+           sep = "\\.", convert = TRUE, fill = "right") |> 
+  mutate(WordNum = as.numeric(WordNum),
+         Acc = as.numeric(as.character(recode(CorrWord, yes = "1", no = "0"))),
+         n.cloze.scale =  scale(n.cloze), 
+         art.cloze.scale = scale(art.cloze)) |> 
+  mutate(across(where(is.character), as.factor)) |> 
+  filter(item != 29) |> 
+  filter(Hash != "9dAvrH0+R6a0U5adPzZSyA")
+
+```
+
+
+```{r}
+rt.s <- df_rt 
+
+rt.s$rgn.fix <- rt.s$WordNum - rt.s$pos + 1
+rt.s$word.num.z <- scale(rt.s$WordNum)
+rt.s$word.len <- nchar(as.character(rt.s$Word))
+rt.s$Altword.len <- nchar(as.character(rt.s$Alt))
+# simplying by using dummy/treatment coding instead of sum coding
+# 'expected' will be reference level
+#contrasts(rt.s$expect) <- c(-.5,.5)
+
+rt.s$item.expect <- paste(rt.s$item, rt.s$expect, sep=".")
+rt.s.filt <- rt.s[rt.s$Hash != "gyxidIf0fqXBM7nxg2K7SQ" & rt.s$Hash != "f8dC3CkleTBP9lUufzUOyQ",]
+
+rgn.rt.raw <- rt.s.filt %>%
+  filter(rgn.fix > -4 & rgn.fix < 5) %>%
+  filter(Acc == 1) %>%
+  group_by(rgn.fix, expect) %>%
+  summarize(n = n(), subj = length(unique(Hash)), rt = mean(RT), 
+            sd = sd(RT), stderr = sd / sqrt(subj)) %>%
+  as.data.frame()
+rgn.rt.raw$rgn <- as.factor(recode(rgn.rt.raw$rgn.fix, "-3"="CW-3", "-2"="CW-2", "-1"="CW-1", "0"="art", "1"="n","2"="CW+1", "3"="CW+2", "4"="CW+3"))
+rgn.rt.raw$rgn <- ordered(rgn.rt.raw$rgn, levels = c("CW-3", "CW-2", "CW-1", "art", "n", "CW+1", "CW+2", "CW+3"))
+```
+```{r}
+rt.s.filt |> 
+  filter(rgn.fix == 0) |> 
+  group_by(Hash, expect) |> 
+  summarize(RT = mean(RT, na.rm = TRUE)) |> 
+  group_by(expect) |> 
+  summarize(RT = mean(RT, na.rm = TRUE)) |>
+  gt() |> 
+  fmt_number(decimals = 0)
+```
+
